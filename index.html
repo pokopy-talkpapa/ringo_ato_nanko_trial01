@@ -464,10 +464,8 @@
   }
 
   function beep({ freq=880, duration=0.08, type="sine", gain=0.06, when=0 }) {
-    if (!state.soundOn) return;
-    if (!audioCtx) return;
-
-    const play = () => {
+    if (!state.soundOn || !audioCtx) return;
+    try {
       const now = audioCtx.currentTime + when;
       const osc = audioCtx.createOscillator();
       const amp = audioCtx.createGain();
@@ -480,13 +478,7 @@
       amp.connect(audioCtx.destination);
       osc.start(now);
       osc.stop(now + duration + 0.02);
-    };
-
-    if (audioCtx.state === "suspended") {
-      audioCtx.resume().then(play);
-    } else {
-      play();
-    }
+    } catch(e) {}
   }
 
   function playCorrect() {
