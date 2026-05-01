@@ -445,38 +445,39 @@
 
   // --- Audio（iOS対応: 最初のタップでAudioContext起動） ---
   let audioCtx = null;
-  function unlockAudio() {
-    if (audioCtx) return;
-    const Cls = window.AudioContext || window.webkitAudioContext;
-    if (!Cls) return;
-    audioCtx = new Cls();
-    if (audioCtx.state === "suspended") audioCtx.resume();
-  }
-  document.addEventListener("touchstart", unlockAudio, { once: true });
-  document.addEventListener("click", unlockAudio, { once: true });
 
-  function getAudioCtx() {
-    if (!audioCtx) unlockAudio();
-    if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+  function getOrCreateAudioCtx() {
+    const Cls = window.AudioContext || window.webkitAudioContext;
+    if (!Cls) return null;
+    if (!audioCtx) audioCtx = new Cls();
     return audioCtx;
   }
 
-  function beep({ freq=880, duration=0.08, type="sine", gain=0.03, when=0 }) {
+  function beep({ freq=880, duration=0.08, type="sine", gain=0.06, when=0 }) {
     if (!state.soundOn) return;
-    const ctx = getAudioCtx();
+    const ctx = getOrCreateAudioCtx();
     if (!ctx) return;
-    const now = ctx.currentTime + when;
-    const osc = ctx.createOscillator();
-    const amp = ctx.createGain();
-    osc.type = type;
-    osc.frequency.setValueAtTime(freq, now);
-    amp.gain.setValueAtTime(0.0001, now);
-    amp.gain.exponentialRampToValueAtTime(gain, now + 0.01);
-    amp.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-    osc.connect(amp);
-    amp.connect(ctx.destination);
-    osc.start(now);
-    osc.stop(now + duration + 0.02);
+
+    const play = () => {
+      const now = ctx.currentTime + when;
+      const osc = ctx.createOscillator();
+      const amp = ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, now);
+      amp.gain.setValueAtTime(0.0001, now);
+      amp.gain.exponentialRampToValueAtTime(gain, now + 0.01);
+      amp.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+      osc.connect(amp);
+      amp.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + duration + 0.02);
+    };
+
+    if (ctx.state === "suspended") {
+      ctx.resume().then(play);
+    } else {
+      play();
+    }
   }
 
   function playCorrect() {
