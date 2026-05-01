@@ -446,35 +446,44 @@
   // --- Audio（iOS対応: 最初のタップでAudioContext起動） ---
   let audioCtx = null;
 
-  function getOrCreateAudioCtx() {
+  function ensureAudioActive() {
     const Cls = window.AudioContext || window.webkitAudioContext;
-    if (!Cls) return null;
+    if (!Cls) return;
     if (!audioCtx) audioCtx = new Cls();
-    return audioCtx;
+    if (audioCtx.state !== "running") {
+      // iOSは無音bufferを再生することでAudioContextがrunning状態になる
+      try {
+        const buf = audioCtx.createBuffer(1, 1, audioCtx.sampleRate);
+        const src = audioCtx.createBufferSource();
+        src.buffer = buf;
+        src.connect(audioCtx.destination);
+        src.start(0);
+      } catch (e) {}
+      audioCtx.resume();
+    }
   }
 
   function beep({ freq=880, duration=0.08, type="sine", gain=0.06, when=0 }) {
     if (!state.soundOn) return;
-    const ctx = getOrCreateAudioCtx();
-    if (!ctx) return;
+    if (!audioCtx) return;
 
     const play = () => {
-      const now = ctx.currentTime + when;
-      const osc = ctx.createOscillator();
-      const amp = ctx.createGain();
+      const now = audioCtx.currentTime + when;
+      const osc = audioCtx.createOscillator();
+      const amp = audioCtx.createGain();
       osc.type = type;
       osc.frequency.setValueAtTime(freq, now);
       amp.gain.setValueAtTime(0.0001, now);
       amp.gain.exponentialRampToValueAtTime(gain, now + 0.01);
       amp.gain.exponentialRampToValueAtTime(0.0001, now + duration);
       osc.connect(amp);
-      amp.connect(ctx.destination);
+      amp.connect(audioCtx.destination);
       osc.start(now);
       osc.stop(now + duration + 0.02);
     };
 
-    if (ctx.state === "suspended") {
-      ctx.resume().then(play);
+    if (audioCtx.state === "suspended") {
+      audioCtx.resume().then(play);
     } else {
       play();
     }
@@ -814,6 +823,7 @@
     el.addEventListener("touchstart", (e) => {
       e.preventDefault();
       lastTouch = Date.now();
+      ensureAudioActive();
       fn();
     }, { passive: false });
     el.addEventListener("click", () => {
