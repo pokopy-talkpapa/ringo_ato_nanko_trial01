@@ -290,7 +290,7 @@
 
   .digitBtn:disabled {
     opacity: .45;
-    cursor: not-allowed;
+    cursor: default;
   }
 
   @keyframes shake {
@@ -820,6 +820,7 @@
     }, { passive: false });
     el.addEventListener("click", () => {
       if (Date.now() - lastTouch < 600) return;
+      ensureAudioActive();
       fn();
     });
   }
