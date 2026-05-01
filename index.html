@@ -465,26 +465,21 @@
 
   function beep({ freq=880, duration=0.08, type="sine", gain=0.06, when=0 }) {
     if (!state.soundOn || !audioCtx) return;
-    const play = () => {
-      try {
-        const now = audioCtx.currentTime + when;
-        const osc = audioCtx.createOscillator();
-        const amp = audioCtx.createGain();
-        osc.type = type;
-        osc.frequency.setValueAtTime(freq, now);
-        amp.gain.setValueAtTime(0.0001, now);
-        amp.gain.exponentialRampToValueAtTime(gain, now + 0.01);
-        amp.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-        osc.connect(amp);
-        amp.connect(audioCtx.destination);
-        osc.start(now);
-        osc.stop(now + duration + 0.02);
-      } catch(e) {}
-    };
-    if (audioCtx.state === "running") {
-      play();
-    }
-    // running でない場合は鳴らさない（soundBtnのresume().then()で次回以降に対応済み）
+    try {
+      const t = audioCtx.currentTime + when;
+      const osc = audioCtx.createOscillator();
+      const amp = audioCtx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, t);
+      amp.gain.setValueAtTime(0.0001, t);
+      amp.gain.exponentialRampToValueAtTime(gain, t + 0.01);
+      amp.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+      osc.connect(amp);
+      amp.connect(audioCtx.destination);
+      osc.start(t);
+      osc.stop(t + duration + 0.02);
+      if (audioCtx.state !== "running") audioCtx.resume();
+    } catch(e) {}
   }
 
   function playCorrect() {
@@ -856,32 +851,27 @@
     localStorage.setItem(STORAGE_SOUND_KEY, state.soundOn ? "on" : "off");
     updateSoundButton();
     if (state.soundOn) {
-      // iOSではresume()が非同期のため、.then()で確認音を鳴らしてコンテキストを確実にrunningにする
+      // iOS確実パターン: ノードを先にスケジュールしてからresume()を呼ぶ
+      // resume().then()はPromiseマイクロタスクなのでiOSのジェスチャーコンテキストから外れる場合がある
       const Cls = window.AudioContext || window.webkitAudioContext;
       if (!Cls) return;
       if (!audioCtx) audioCtx = new Cls();
-      const playConfirm = () => {
-        if (!state.soundOn) return;
-        try {
-          const now = audioCtx.currentTime;
-          const osc = audioCtx.createOscillator();
-          const amp = audioCtx.createGain();
-          osc.type = "sine";
-          osc.frequency.setValueAtTime(880, now);
-          amp.gain.setValueAtTime(0.0001, now);
-          amp.gain.exponentialRampToValueAtTime(0.04, now + 0.01);
-          amp.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
-          osc.connect(amp);
-          amp.connect(audioCtx.destination);
-          osc.start(now);
-          osc.stop(now + 0.08);
-        } catch(e) {}
-      };
-      if (audioCtx.state === "running") {
-        playConfirm();
-      } else {
-        audioCtx.resume().then(playConfirm);
-      }
+      try {
+        const t = audioCtx.currentTime; // suspended時は0
+        const osc = audioCtx.createOscillator();
+        const amp = audioCtx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(880, t);
+        amp.gain.setValueAtTime(0.0001, t);
+        amp.gain.exponentialRampToValueAtTime(0.04, t + 0.01);
+        amp.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
+        osc.connect(amp);
+        amp.connect(audioCtx.destination);
+        osc.start(t);  // t=0(suspended)でも、resume()後に即再生される
+        osc.stop(t + 0.08);
+      } catch(e) {}
+      // ノードをスケジュール済みの後にresume() → コンテキスト開始と同時に上のノードが鳴る
+      if (audioCtx.state !== "running") audioCtx.resume();
     }
   });
 
