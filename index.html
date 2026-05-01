@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>りんご あと なんこ？</title>
+<style>
+  :root {
+    --bg: #f7f7f7;
+    --panel: #ffffff;
+    --shadow: 0 8px 20px rgba(0,0,0,.10);
+    --radius: 16px;
+    --card-w: min(92vw, 360px);
+    --dark: #111;
+    --success: #0f8a2b;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Noto Sans JP", sans-serif;
+    background: var(--bg);
+    color: var(--dark);
+  }
+
+  .wrap {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 12px;
+  }
+
+  .panel {
+    background: var(--panel);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 14px 12px 16px;
+    position: relative;
+  }
+
+  .titleRow {
+    position: relative;
+    min-height: 44px;
+    margin-bottom: 8px;
+  }
+
+  .title {
+    font-weight: 950;
+    font-size: 22px;
+    margin: 0;
+    text-align: center;
+    line-height: 44px;
+  }
+
+  .soundBtn {
+    position: absolute;
+    right: 0;
+    top: 0;
+    border: 0;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    font-size: 15px;
+    font-weight: 950;
+    cursor: pointer;
+    background: #f1f1f1;
+    color: var(--dark);
+    line-height: 1;
+  }
+
+  .soundBtn.off {
+    background: #e9e9e9;
+    color: #666;
+  }
+
+  .soundIcon { font-size: 18px; line-height: 1; }
+
+  .topModes {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin: 4px 0 14px;
+  }
+
+  .modeBtn {
+    border: 0;
+    border-radius: 12px;
+    padding: 12px 14px;
+    min-width: 96px;
+    font-size: 14px;
+    font-weight: 900;
+    cursor: pointer;
+    background: #ececec;
+    color: var(--dark);
+    transition: background .12s ease, color .12s ease;
+  }
+
+  .modeBtn.active {
+    background: var(--dark);
+    color: #fff;
+  }
+
+  .modeBtn:disabled,
+  .soundBtn:disabled {
+    opacity: .55;
+    cursor: not-allowed;
+  }
+
+  .stage { display: flex; justify-content: center; }
+
+  .card {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 6px 14px rgba(0,0,0,.08);
+    padding: 12px;
+    position: relative;
+    aspect-ratio: 3 / 4;
+    width: var(--card-w);
+    overflow: hidden;
+    margin: 0 auto;
+  }
+
+  .card::after {
+    content: "";
+    position: absolute;
+    inset: 10px;
+    border-radius: 12px;
+    border: 3px solid rgba(0,0,0,.06);
+    pointer-events: none;
+    z-index: 5;
+  }
+
+  .cardInner {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+  }
+
+  .cardDisplay {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+  }
+
+  .cardDisplay.show { display: flex; }
+
+  .appleCardImg {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    user-select: none;
+    pointer-events: none;
+    display: block;
+    filter: drop-shadow(0 6px 10px rgba(0,0,0,.08));
+  }
+
+  .answerBadge {
+    position: absolute;
+    left: 50%;
+    bottom: 14px;
+    transform: translateX(-50%) translateY(8px) scale(.96);
+    min-width: 74px;
+    height: 74px;
+    padding: 0 16px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.95);
+    border: 3px solid rgba(15,138,43,.18);
+    color: var(--success);
+    box-shadow: 0 8px 18px rgba(0,0,0,.10);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 42px;
+    font-weight: 950;
+    opacity: 0;
+    transition: opacity .14s ease, transform .14s ease;
+    pointer-events: none;
+  }
+
+  .answerBadge.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+
+  .messageArea {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 24px;
+  }
+
+  .messageArea.show { display: flex; }
+
+  .messageInner {
+    background: rgba(255,255,255,.9);
+    border-radius: 20px;
+    padding: 20px 22px;
+    box-shadow: 0 10px 24px rgba(0,0,0,.12);
+    min-width: min(280px, 82%);
+  }
+
+  .messageTitle {
+    font-size: clamp(28px, 7vw, 40px);
+    font-weight: 950;
+    line-height: 1.25;
+    margin: 0;
+    white-space: pre-line;
+  }
+
+  .messageSub {
+    margin: 10px 0 0;
+    font-size: 16px;
+    font-weight: 800;
+    color: #555;
+    line-height: 1.6;
+    white-space: pre-line;
+  }
+
+  .resultResetBtn {
+    margin-top: 14px;
+    border: 0;
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 14px;
+    font-weight: 900;
+    cursor: pointer;
+    background: #efefef;
+    color: var(--dark);
+  }
+
+  .resultResetBtn.hidden { display: none; }
+
+  .controls {
+    display: flex;
+    justify-content: center;
+    margin-top: 16px;
+  }
+
+  .controls.hidden { display: none; }
+
+  .mainBtn {
+    border: 0;
+    border-radius: 14px;
+    font-weight: 950;
+    cursor: pointer;
+    padding: 14px 18px;
+    font-size: 18px;
+    background: var(--dark);
+    color: #fff;
+    min-width: 170px;
+  }
+
+  .mainBtn:disabled {
+    opacity: .55;
+    cursor: not-allowed;
+  }
+
+  .pad {
+    max-width: 430px;
+    margin: 16px auto 0;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+
+  .digitBtn {
+    border: 0;
+    border-radius: 16px;
+    background: #fff;
+    color: var(--dark);
+    box-shadow: 0 6px 14px rgba(0,0,0,.08);
+    min-height: 74px;
+    font-size: 30px;
+    font-weight: 950;
+    cursor: pointer;
+    transition: transform .08s ease, opacity .08s ease;
+  }
+
+  .digitBtn:active { transform: translateY(1px) scale(.99); }
+
+  .digitBtn:disabled {
+    opacity: .45;
+    cursor: not-allowed;
+  }
+
+  @keyframes shake {
+    0%   { transform: translateX(0); }
+    20%  { transform: translateX(-10px); }
+    40%  { transform: translateX(10px); }
+    60%  { transform: translateX(-8px); }
+    80%  { transform: translateX(8px); }
+    100% { transform: translateX(0); }
+  }
+  .cardInner.shake { animation: shake .22s ease; }
+
+  @keyframes bgCorrect {
+    0%   { background: #b6f0b6; }
+    60%  { background: #dffadf; }
+    100% { background: #fff; }
+  }
+  .card.bgCorrect { animation: bgCorrect .45s ease; }
+
+  @keyframes bgWrong {
+    0%   { background: #ffb3b3; }
+    60%  { background: #ffe0e0; }
+    100% { background: #fff; }
+  }
+  .card.bgWrong { animation: bgWrong .45s ease; }
+
+  .starParticle {
+    position: absolute;
+    font-size: 28px;
+    pointer-events: none;
+    z-index: 20;
+    animation: starFloat .7s ease forwards;
+  }
+  @keyframes starFloat {
+    0%   { opacity: 1; transform: translate(-50%, 0) scale(0.8); }
+    40%  { opacity: 1; transform: translate(-50%, -50px) scale(1.3); }
+    100% { opacity: 0; transform: translate(-50%, -90px) scale(1); }
+  }
+
+  @media (max-width: 560px) {
+    :root { --card-w: min(96vw, 390px); }
+    .wrap { padding: 6px; }
+    .panel { padding: 10px 8px 12px; }
+    .titleRow { min-height: 92px; margin-bottom: 2px; }
+    .title { line-height: 1.35; padding-top: 6px; font-size: 20px; }
+    .soundBtn { top: 46px; right: 0; font-size: 13px; padding: 8px 10px; }
+    .topModes { margin: 0 0 8px; gap: 6px; }
+    .modeBtn { min-width: 84px; font-size: 13px; padding: 10px 8px; }
+    .card { aspect-ratio: auto; height: 245px; }
+    .cardDisplay { padding: 14px; }
+    .answerBadge { bottom: 10px; min-width: 64px; height: 64px; font-size: 36px; }
+    .pad { margin: 2px auto 0; gap: 8px; }
+    .digitBtn { min-height: 62px; font-size: 26px; }
+    .controls { margin-top: 10px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="panel">
+    <div class="titleRow">
+      <p class="title">りんご あと なんこ？</p>
+      <button id="soundBtn" class="soundBtn" type="button" aria-pressed="true">
+        <span id="soundIcon" class="soundIcon">🔊</span>
+        <span id="soundLabel">おと ON</span>
+      </button>
+    </div>
+
+    <div class="topModes">
+      <button id="practiceModeBtn" class="modeBtn active" type="button">れんしゅう</button>
+      <button id="challengeModeBtn" class="modeBtn" type="button">30びょう</button>
+      <button id="noMissModeBtn" class="modeBtn" type="button">ノーミスモード</button>
+    </div>
+
+    <div class="stage">
+      <div class="card">
+        <div id="cardInner" class="cardInner">
+          <div id="cardDisplay" class="cardDisplay">
+            <img id="appleCardImg" class="appleCardImg" src="" alt="りんごのカード" />
+            <div id="answerBadge" class="answerBadge"></div>
+          </div>
+          <div id="messageArea" class="messageArea">
+            <div class="messageInner">
+              <p id="messageTitle" class="messageTitle"></p>
+              <p id="messageSub" class="messageSub"></p>
+              <button id="resultResetBtn" class="resultResetBtn hidden" type="button">ベストきろくを リセット</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="controls" class="controls hidden">
+      <button id="mainBtn" class="mainBtn" type="button">スタート</button>
+    </div>
+
+    <div class="pad">
+      <button class="digitBtn" type="button" data-digit="1">1</button>
+      <button class="digitBtn" type="button" data-digit="2">2</button>
+      <button class="digitBtn" type="button" data-digit="3">3</button>
+      <button class="digitBtn" type="button" data-digit="4">4</button>
+      <button class="digitBtn" type="button" data-digit="5">5</button>
+      <button class="digitBtn" type="button" data-digit="6">6</button>
+      <button class="digitBtn" type="button" data-digit="7">7</button>
+      <button class="digitBtn" type="button" data-digit="8">8</button>
+      <button class="digitBtn" type="button" data-digit="9">9</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const STORAGE_SOUND_KEY   = "ringoAtoNankoSoundOn";
+  const STORAGE_BEST_30_KEY = "ringoAtoNankoBest30";
+  const STORAGE_BEST_NM_KEY = "ringoAtoNankoBestNoMiss";
+
+  const CARD_IMAGES = [null,"01.png","02.png","03.png","04.png","05.png","06.png","07.png","08.png","09.png"];
+
+  const state = {
+    mode: "practice",
+    current: null,
+    locked: false,
+    gameRunning: false,
+    gameBusy: false,
+    score: 0,
+    misses: 0,
+    best30:     Number(localStorage.getItem(STORAGE_BEST_30_KEY) || 0),
+    bestNoMiss: Number(localStorage.getItem(STORAGE_BEST_NM_KEY) || 0),
+    soundOn: localStorage.getItem(STORAGE_SOUND_KEY) !== "off",
+    timerId: null,
+    nextId: null,
+    endAt: 0,
+    showResetButton: false,
+    lastResult: null
+  };
+
+  const soundBtn         = document.getElementById("soundBtn");
+  const practiceModeBtn  = document.getElementById("practiceModeBtn");
+  const challengeModeBtn = document.getElementById("challengeModeBtn");
+  const noMissModeBtn    = document.getElementById("noMissModeBtn");
+  const controls         = document.getElementById("controls");
+  const mainBtn          = document.getElementById("mainBtn");
+  const resultResetBtn   = document.getElementById("resultResetBtn");
+  const cardInner        = document.getElementById("cardInner");
+  const cardDisplay      = document.getElementById("cardDisplay");
+  const messageArea      = document.getElementById("messageArea");
+  const messageTitle     = document.getElementById("messageTitle");
+  const messageSub       = document.getElementById("messageSub");
+  const appleCardImg     = document.getElementById("appleCardImg");
+  const answerBadge      = document.getElementById("answerBadge");
+  const digitButtons     = Array.from(document.querySelectorAll(".digitBtn"));
+  const card             = document.querySelector(".card");
+
+  // --- Audio（iOS対応: 最初のタップでAudioContext起動） ---
+  let audioCtx = null;
+  function unlockAudio() {
+    if (audioCtx) return;
+    const Cls = window.AudioContext || window.webkitAudioContext;
+    if (!Cls) return;
+    audioCtx = new Cls();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+  }
+  document.addEventListener("touchstart", unlockAudio, { once: true });
+  document.addEventListener("click", unlockAudio, { once: true });
+
+  function getAudioCtx() {
+    if (!audioCtx) unlockAudio();
+    if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+    return audioCtx;
+  }
+
+  function beep({ freq=880, duration=0.08, type="sine", gain=0.03, when=0 }) {
+    if (!state.soundOn) return;
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    const now = ctx.currentTime + when;
+    const osc = ctx.createOscillator();
+    const amp = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, now);
+    amp.gain.setValueAtTime(0.0001, now);
+    amp.gain.exponentialRampToValueAtTime(gain, now + 0.01);
+    amp.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+    osc.connect(amp);
+    amp.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + duration + 0.02);
+  }
+
+  function playCorrect() {
+    beep({ freq: 880,  duration: 0.08, type: "sine", gain: 0.035, when: 0 });
+    beep({ freq: 1320, duration: 0.1,  type: "sine", gain: 0.03,  when: 0.08 });
+  }
+
+  function playWrong() {
+    beep({ freq: 180, duration: 0.12, type: "triangle", gain: 0.03, when: 0 });
+  }
+
+  // --- UI ---
+  function updateSoundButton() {
+    soundBtn.classList.toggle("off", !state.soundOn);
+    soundBtn.setAttribute("aria-pressed", state.soundOn ? "true" : "false");
+    document.getElementById("soundIcon").textContent  = state.soundOn ? "🔊" : "🔇";
+    document.getElementById("soundLabel").textContent = state.soundOn ? "おと ON" : "おと OFF";
+  }
+
+  function setPadDisabled(disabled) {
+    digitButtons.forEach(b => b.disabled = disabled);
+  }
+
+  function showCard() {
+    cardDisplay.classList.add("show");
+    messageArea.classList.remove("show");
+    state.showResetButton = false;
+    resultResetBtn.classList.add("hidden");
+  }
+
+  function showMessage(title, sub) {
+    cardDisplay.classList.remove("show");
+    messageArea.classList.add("show");
+    messageTitle.textContent = title;
+    messageSub.textContent   = sub;
+    resultResetBtn.classList.toggle("hidden", !state.showResetButton);
+  }
+
+  function hideAnswer() {
+    answerBadge.textContent = "";
+    answerBadge.classList.remove("show");
+  }
+
+  function showAnswer(value) {
+    answerBadge.textContent = String(value);
+    answerBadge.classList.add("show");
+  }
+
+  function shakeCard() {
+    cardInner.classList.remove("shake");
+    void cardInner.offsetWidth;
+    cardInner.classList.add("shake");
+  }
+
+  function flashCorrectCard() {
+    card.classList.remove("bgCorrect");
+    void card.offsetWidth;
+    card.classList.add("bgCorrect");
+    card.addEventListener("animationend", () => card.classList.remove("bgCorrect"), { once: true });
+    spawnStars();
+  }
+
+  function flashWrongCard() {
+    card.classList.remove("bgWrong");
+    void card.offsetWidth;
+    card.classList.add("bgWrong");
+    card.addEventListener("animationend", () => card.classList.remove("bgWrong"), { once: true });
+  }
+
+  function spawnStars() {
+    const items = [
+      { emoji: "⭐", left: "25%", top: "65%", delay: 0 },
+      { emoji: "✨", left: "50%", top: "70%", delay: 0.07 },
+      { emoji: "🌟", left: "75%", top: "65%", delay: 0.14 }
+    ];
+    items.forEach(({ emoji, left, top, delay }) => {
+      const el = document.createElement("span");
+      el.className = "starParticle";
+      el.textContent = emoji;
+      el.style.left = left;
+      el.style.top  = top;
+      el.style.animationDelay = delay + "s";
+      card.appendChild(el);
+      el.addEventListener("animationend", () => el.remove());
+    });
+  }
+
+  function clearEffects() {
+    cardInner.classList.remove("shake");
+    card.classList.remove("bgCorrect", "bgWrong");
+  }
+
+  // --- Problem ---
+  function pickProblem() {
+    let count;
+    do {
+      count = Math.floor(Math.random() * 9) + 1;
+    } while (state.current && count === state.current.count);
+    return { count, image: CARD_IMAGES[count], answer: 10 - count };
+  }
+
+  function setProblem(p) {
+    clearEffects();
+    state.current = p;
+    appleCardImg.src = p.image;
+    hideAnswer();
+    showCard();
+  }
+
+  // --- Best record helpers ---
+  function getCurrentBest() {
+    if (state.mode === "challenge") return state.best30;
+    if (state.mode === "nomiss")    return state.bestNoMiss;
+    return 0;
+  }
+
+  function setCurrentBest(v) {
+    if (state.mode === "challenge") {
+      state.best30 = v;
+      localStorage.setItem(STORAGE_BEST_30_KEY, String(v));
+    } else if (state.mode === "nomiss") {
+      state.bestNoMiss = v;
+      localStorage.setItem(STORAGE_BEST_NM_KEY, String(v));
+    }
+  }
+
+  function clearCurrentBest() {
+    if (state.mode === "challenge") {
+      state.best30 = 0;
+      localStorage.removeItem(STORAGE_BEST_30_KEY);
+    } else if (state.mode === "nomiss") {
+      state.bestNoMiss = 0;
+      localStorage.removeItem(STORAGE_BEST_NM_KEY);
+    }
+  }
+
+  function clearTimers() {
+    clearTimeout(state.nextId);
+    clearInterval(state.timerId);
+    state.nextId = null;
+    state.timerId = null;
+  }
+
+  function updateControls() {
+    controls.classList.toggle("hidden", state.mode === "practice");
+  }
+
+  function updateModeButtons() {
+    practiceModeBtn.classList.toggle("active",  state.mode === "practice");
+    challengeModeBtn.classList.toggle("active", state.mode === "challenge");
+    noMissModeBtn.classList.toggle("active",    state.mode === "nomiss");
+  }
+
+  // --- Messages ---
+  function buildReadyMessage() {
+    if (state.mode === "challenge") return { title: "30びょう",          sub: "スタートで はじめるよ" };
+    if (state.mode === "nomiss")    return { title: "ノーミス\nモード",  sub: "ミスしたら おわり" };
+    return { title: "", sub: "" };
+  }
+
+  function buildResultMessage(isReset = false) {
+    const r = state.lastResult;
+    const title = `${r.score}もん\nできた！`;
+    if (state.mode === "challenge") {
+      if (isReset)      return { title, sub: `ミス ${r.misses}かい\nベストきろくを リセットしたよ` };
+      if (r.isNewBest)  return { title, sub: `ミス ${r.misses}かい\nベスト こうしん！` };
+      return                   { title, sub: `ミス ${r.misses}かい\nベスト ${getCurrentBest()}もん` };
+    }
+    if (state.mode === "nomiss") {
+      if (isReset)      return { title, sub: `ミスで しゅうりょう\nベストきろくを リセットしたよ` };
+      if (r.isNewBest)  return { title, sub: `ミスで しゅうりょう\nベスト こうしん！` };
+      return                   { title, sub: `ミスで しゅうりょう\nベスト ${getCurrentBest()}もん` };
+    }
+    return { title, sub: "" };
+  }
+
+  // --- Practice ---
+  function resetPractice() {
+    clearTimers();
+    state.gameRunning = false;
+    state.gameBusy = false;
+    state.locked = false;
+    state.showResetButton = false;
+    state.lastResult = null;
+    updateControls();
+    setPadDisabled(false);
+    setProblem(pickProblem());
+  }
+
+  function scheduleNextPractice(ms) {
+    clearTimeout(state.nextId);
+    state.nextId = setTimeout(() => {
+      if (state.mode !== "practice") return;
+      state.locked = false;
+      setPadDisabled(false);
+      setProblem(pickProblem());
+    }, ms);
+  }
+
+  function handlePracticeAnswer(value) {
+    if (!state.current || state.locked) return;
+    if (value === state.current.answer) {
+      state.locked = true;
+      setPadDisabled(true);
+      showAnswer(value);
+      flashCorrectCard();
+      playCorrect();
+      scheduleNextPractice(400);
+    } else {
+      shakeCard();
+      flashWrongCard();
+      playWrong();
+    }
+  }
+
+  // --- Challenge / NoMiss ---
+  function resetGameReady() {
+    clearTimers();
+    clearEffects();
+    state.gameRunning = false;
+    state.gameBusy = false;
+    state.score = 0;
+    state.misses = 0;
+    state.showResetButton = false;
+    state.lastResult = null;
+    updateControls();
+    setPadDisabled(true);
+    mainBtn.disabled = false;
+    mainBtn.textContent = "スタート";
+    const { title, sub } = buildReadyMessage();
+    showMessage(title, sub);
+  }
+
+  function endGame() {
+    if (!state.gameRunning) return;
+    clearTimers();
+    state.gameRunning = false;
+    state.gameBusy = false;
+    setPadDisabled(true);
+
+    const isNewBest = state.score > getCurrentBest();
+    if (isNewBest) setCurrentBest(state.score);
+
+    state.lastResult = { score: state.score, misses: state.misses, isNewBest };
+    state.showResetButton = true;
+
+    const { title, sub } = buildResultMessage();
+    showMessage(title, sub);
+    mainBtn.disabled = false;
+    mainBtn.textContent = "もういちど";
+  }
+
+  function startGame() {
+    clearTimers();
+    clearEffects();
+    state.gameRunning = true;
+    state.gameBusy = false;
+    state.score = 0;
+    state.misses = 0;
+    state.showResetButton = false;
+    state.lastResult = null;
+    mainBtn.disabled = true;
+    mainBtn.textContent = state.mode === "challenge" ? "ちょうせん中" : "ノーミス中";
+    setPadDisabled(false);
+    setProblem(pickProblem());
+
+    if (state.mode === "challenge") {
+      state.endAt = Date.now() + 30000;
+      state.timerId = setInterval(() => {
+        if (Date.now() >= state.endAt) endGame();
+      }, 100);
+    }
+  }
+
+  function scheduleNextGame(ms) {
+    clearTimeout(state.nextId);
+    state.nextId = setTimeout(() => {
+      if (!state.gameRunning) return;
+      if (state.mode === "challenge" && Date.now() >= state.endAt) { endGame(); return; }
+      state.gameBusy = false;
+      setPadDisabled(false);
+      setProblem(pickProblem());
+    }, ms);
+  }
+
+  function unlockSameProblem(ms) {
+    clearTimeout(state.nextId);
+    state.nextId = setTimeout(() => {
+      if (!state.gameRunning) return;
+      if (state.mode === "challenge" && Date.now() >= state.endAt) { endGame(); return; }
+      state.gameBusy = false;
+      setPadDisabled(false);
+    }, ms);
+  }
+
+  function handleGameAnswer(value) {
+    if (!state.current || !state.gameRunning || state.gameBusy) return;
+    state.gameBusy = true;
+    setPadDisabled(true);
+
+    if (value === state.current.answer) {
+      state.score += 1;
+      showAnswer(value);
+      flashCorrectCard();
+      playCorrect();
+      scheduleNextGame(280);
+    } else {
+      state.misses += 1;
+      shakeCard();
+      flashWrongCard();
+      playWrong();
+      if (state.mode === "nomiss") {
+        setTimeout(() => endGame(), 500);
+      } else {
+        unlockSameProblem(280);
+      }
+    }
+  }
+
+  function handleDigit(value) {
+    if (state.mode === "practice") {
+      handlePracticeAnswer(value);
+    } else {
+      handleGameAnswer(value);
+    }
+  }
+
+  // --- Event listeners ---
+  digitButtons.forEach(btn => {
+    btn.addEventListener("click", () => handleDigit(Number(btn.dataset.digit)));
+  });
+
+  mainBtn.addEventListener("click", () => {
+    if (!state.gameRunning) startGame();
+  });
+
+  resultResetBtn.addEventListener("click", () => {
+    clearCurrentBest();
+    const { title, sub } = buildResultMessage(true);
+    showMessage(title, sub);
+    state.showResetButton = false;
+    resultResetBtn.classList.add("hidden");
+  });
+
+  practiceModeBtn.addEventListener("click",  () => { if (state.mode !== "practice")  setMode("practice"); });
+  challengeModeBtn.addEventListener("click", () => { if (state.mode !== "challenge") setMode("challenge"); });
+  noMissModeBtn.addEventListener("click",    () => { if (state.mode !== "nomiss")    setMode("nomiss"); });
+
+  soundBtn.addEventListener("click", () => {
+    state.soundOn = !state.soundOn;
+    localStorage.setItem(STORAGE_SOUND_KEY, state.soundOn ? "on" : "off");
+    updateSoundButton();
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.repeat) return;
+    if (/^[1-9]$/.test(e.key)) { handleDigit(Number(e.key)); return; }
+    if (e.key === "Enter" && state.mode !== "practice" && !state.gameRunning) startGame();
+  });
+
+  function setMode(mode) {
+    clearTimers();
+    state.mode = mode;
+    updateModeButtons();
+    if (mode === "practice") {
+      resetPractice();
+    } else {
+      resetGameReady();
+    }
+  }
+
+  function preloadImages() {
+    for (let i = 1; i <= 9; i++) {
+      const img = new Image();
+      img.src = CARD_IMAGES[i];
+    }
+  }
+
+  preloadImages();
+  updateSoundButton();
+  setMode("practice");
+</script>
+</body>
+</html>
