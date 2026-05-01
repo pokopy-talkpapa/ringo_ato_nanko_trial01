@@ -806,15 +806,31 @@
   }
 
   // --- Event listeners ---
+  // iOSはtouchstartのコンテキスト内でないとAudioContextが動かないため
+  // touchstartで処理し、直後に発火するゴーストclickは無視する
+  let lastTouch = 0;
+
+  function addTapListener(el, fn) {
+    el.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      lastTouch = Date.now();
+      fn();
+    }, { passive: false });
+    el.addEventListener("click", () => {
+      if (Date.now() - lastTouch < 600) return;
+      fn();
+    });
+  }
+
   digitButtons.forEach(btn => {
-    btn.addEventListener("click", () => handleDigit(Number(btn.dataset.digit)));
+    addTapListener(btn, () => handleDigit(Number(btn.dataset.digit)));
   });
 
-  mainBtn.addEventListener("click", () => {
+  addTapListener(mainBtn, () => {
     if (!state.gameRunning) startGame();
   });
 
-  resultResetBtn.addEventListener("click", () => {
+  addTapListener(resultResetBtn, () => {
     clearCurrentBest();
     const { title, sub } = buildResultMessage(true);
     showMessage(title, sub);
@@ -822,11 +838,11 @@
     resultResetBtn.classList.add("hidden");
   });
 
-  practiceModeBtn.addEventListener("click",  () => { if (state.mode !== "practice")  setMode("practice"); });
-  challengeModeBtn.addEventListener("click", () => { if (state.mode !== "challenge") setMode("challenge"); });
-  noMissModeBtn.addEventListener("click",    () => { if (state.mode !== "nomiss")    setMode("nomiss"); });
+  addTapListener(practiceModeBtn,  () => { if (state.mode !== "practice")  setMode("practice"); });
+  addTapListener(challengeModeBtn, () => { if (state.mode !== "challenge") setMode("challenge"); });
+  addTapListener(noMissModeBtn,    () => { if (state.mode !== "nomiss")    setMode("nomiss"); });
 
-  soundBtn.addEventListener("click", () => {
+  addTapListener(soundBtn, () => {
     state.soundOn = !state.soundOn;
     localStorage.setItem(STORAGE_SOUND_KEY, state.soundOn ? "on" : "off");
     updateSoundButton();
