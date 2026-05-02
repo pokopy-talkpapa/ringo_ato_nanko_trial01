@@ -443,50 +443,52 @@
   const digitButtons     = Array.from(document.querySelectorAll(".digitBtn"));
   const card             = document.querySelector(".card");
 
-  // --- Audio（<audio>タグ + WAV生成方式。Safari/Chrome iOS両対応） ---
-  function makeBeepWav(tones, sr = 22050) {
-    const total = Math.round(tones.reduce((s, t) => s + t.dur, 0) * sr);
-    const buf = new ArrayBuffer(44 + total * 2);
-    const v = new DataView(buf);
-    const ws = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
-    ws(0, 'RIFF'); v.setUint32(4, 36 + total * 2, true);
-    ws(8, 'WAVE'); ws(12, 'fmt ');
-    v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
-    v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true);
-    v.setUint16(32, 2, true); v.setUint16(34, 16, true);
-    ws(36, 'data'); v.setUint32(40, total * 2, true);
-    let off = 0;
-    for (const { freq, dur, gain = 0.3 } of tones) {
-      const n = Math.round(dur * sr);
-      for (let i = 0; i < n; i++) {
-        const t = i / sr;
-        const env = Math.min(1, t / 0.005) * Math.min(1, (dur - t) / 0.02);
-        v.setInt16(44 + (off + i) * 2, Math.round(Math.sin(2 * Math.PI * freq * t) * gain * env * 32767), true);
-      }
-      off += n;
+  // --- Audio（iOS対応: 最初のタップでAudioContext起動） ---
+  let audioCtx = null;
+
+  function ensureAudioActive() {
+    const Cls = window.AudioContext || window.webkitAudioContext;
+    if (!Cls) return;
+    if (!audioCtx) audioCtx = new Cls();
+    if (audioCtx.state !== "running") {
+      // iOSは無音bufferを再生することでAudioContextがrunning状態になる
+      try {
+        const buf = audioCtx.createBuffer(1, 1, audioCtx.sampleRate);
+        const src = audioCtx.createBufferSource();
+        src.buffer = buf;
+        src.connect(audioCtx.destination);
+        src.start(0);
+      } catch (e) {}
+      audioCtx.resume();
     }
-    return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
   }
 
-  let sndCorrect = null;
-  let sndWrong   = null;
-  (function initSounds() {
-    const cUrl = makeBeepWav([{ freq: 880, dur: 0.08, gain: 0.25 }, { freq: 1320, dur: 0.1, gain: 0.2 }]);
-    const wUrl = makeBeepWav([{ freq: 180, dur: 0.12, gain: 0.2 }]);
-    sndCorrect = new Audio(cUrl); sndCorrect.preload = 'auto';
-    sndWrong   = new Audio(wUrl); sndWrong.preload   = 'auto';
-  })();
+  function beep({ freq=880, duration=0.08, type="sine", gain=0.06, when=0 }) {
+    if (!state.soundOn || !audioCtx) return;
+    try {
+      const t = audioCtx.currentTime + when;
+      const osc = audioCtx.createOscillator();
+      const amp = audioCtx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, t);
+      amp.gain.setValueAtTime(0.0001, t);
+      amp.gain.exponentialRampToValueAtTime(gain, t + 0.01);
+      amp.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+      osc.connect(amp);
+      amp.connect(audioCtx.destination);
+      osc.start(t);
+      osc.stop(t + duration + 0.02);
+      if (audioCtx.state !== "running") audioCtx.resume();
+    } catch(e) {}
+  }
 
   function playCorrect() {
-    if (!state.soundOn || !sndCorrect) return;
-    sndCorrect.currentTime = 0;
-    sndCorrect.play().catch(() => {});
+    beep({ freq: 880,  duration: 0.08, type: "sine", gain: 0.035, when: 0 });
+    beep({ freq: 1320, duration: 0.1,  type: "sine", gain: 0.03,  when: 0.08 });
   }
 
   function playWrong() {
-    if (!state.soundOn || !sndWrong) return;
-    sndWrong.currentTime = 0;
-    sndWrong.play().catch(() => {});
+    beep({ freq: 180, duration: 0.12, type: "triangle", gain: 0.03, when: 0 });
   }
 
   // --- UI ---
@@ -806,6 +808,7 @@
   }
 
   // --- Event listeners ---
+  // iOSはtouchstartのコンテキスト内でないとAudioContextが動かないため
   // touchstartで処理し、直後に発火するゴーストclickは無視する
   let lastTouch = 0;
 
@@ -813,10 +816,12 @@
     el.addEventListener("touchstart", (e) => {
       e.preventDefault();
       lastTouch = Date.now();
+      ensureAudioActive();
       fn();
     }, { passive: false });
     el.addEventListener("click", () => {
       if (Date.now() - lastTouch < 600) return;
+      ensureAudioActive();
       fn();
     });
   }
@@ -845,7 +850,29 @@
     state.soundOn = !state.soundOn;
     localStorage.setItem(STORAGE_SOUND_KEY, state.soundOn ? "on" : "off");
     updateSoundButton();
-    if (state.soundOn) playCorrect(); // ONにした瞬間に確認音（iOS audio unlock兼用）
+    if (state.soundOn) {
+      // iOS確実パターン: ノードを先にスケジュールしてからresume()を呼ぶ
+      // resume().then()はPromiseマイクロタスクなのでiOSのジェスチャーコンテキストから外れる場合がある
+      const Cls = window.AudioContext || window.webkitAudioContext;
+      if (!Cls) return;
+      if (!audioCtx) audioCtx = new Cls();
+      try {
+        const t = audioCtx.currentTime; // suspended時は0
+        const osc = audioCtx.createOscillator();
+        const amp = audioCtx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(880, t);
+        amp.gain.setValueAtTime(0.0001, t);
+        amp.gain.exponentialRampToValueAtTime(0.04, t + 0.01);
+        amp.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
+        osc.connect(amp);
+        amp.connect(audioCtx.destination);
+        osc.start(t);  // t=0(suspended)でも、resume()後に即再生される
+        osc.stop(t + 0.08);
+      } catch(e) {}
+      // ノードをスケジュール済みの後にresume() → コンテキスト開始と同時に上のノードが鳴る
+      if (audioCtx.state !== "running") audioCtx.resume();
+    }
   });
 
   document.addEventListener("keydown", (e) => {
