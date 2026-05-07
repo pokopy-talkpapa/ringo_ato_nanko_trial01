@@ -996,6 +996,7 @@
 
   function setMode(mode) {
     clearTimers();
+    hideHint();
     state.mode = mode;
     updateModeButtons();
     if (mode === "practice") {
