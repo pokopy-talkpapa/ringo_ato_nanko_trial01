@@ -161,6 +161,23 @@
     filter: drop-shadow(0 6px 10px rgba(0,0,0,.08));
   }
 
+  .hintOverlay {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+    padding: 18px;
+    z-index: 3;
+  }
+
+  .hintOverlay.show {
+    opacity: 0.7;
+  }
+
   .answerBadge {
     position: absolute;
     left: 50%;
@@ -182,6 +199,7 @@
     opacity: 0;
     transition: opacity .14s ease, transform .14s ease;
     pointer-events: none;
+    z-index: 4;
   }
 
   .answerBadge.show {
@@ -239,6 +257,34 @@
   }
 
   .resultResetBtn.hidden { display: none; }
+
+  .hintRow {
+    display: flex;
+    justify-content: center;
+    margin-top: 10px;
+  }
+
+  .hintBtn {
+    border: 0;
+    border-radius: 12px;
+    padding: 10px 22px;
+    font-size: 15px;
+    font-weight: 900;
+    cursor: pointer;
+    background: #f5f0e8;
+    color: #a06000;
+    transition: background .12s ease, color .12s ease;
+  }
+
+  .hintBtn.active {
+    background: #ffe4a0;
+    color: #7a4400;
+  }
+
+  .hintBtn:disabled {
+    opacity: .45;
+    cursor: default;
+  }
 
   .controls {
     display: flex;
@@ -341,7 +387,9 @@
     .modeBtn { min-width: 84px; font-size: 13px; padding: 10px 8px; }
     .card { aspect-ratio: auto; height: 245px; }
     .cardDisplay { padding: 14px; }
+    .hintOverlay { padding: 14px; }
     .answerBadge { bottom: 10px; min-width: 64px; height: 64px; font-size: 36px; }
+    .hintBtn { font-size: 13px; padding: 8px 16px; }
     .pad { margin: 2px auto 0; gap: 8px; }
     .digitBtn { min-height: 62px; font-size: 26px; }
     .controls { margin-top: 10px; }
@@ -370,6 +418,7 @@
         <div id="cardInner" class="cardInner">
           <div id="cardDisplay" class="cardDisplay">
             <img id="appleCardImg" class="appleCardImg" src="" alt="りんごのカード" />
+            <img id="hintOverlayImg" class="hintOverlay" src="" alt="" />
             <div id="answerBadge" class="answerBadge"></div>
           </div>
           <div id="messageArea" class="messageArea">
@@ -381,6 +430,10 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <div class="hintRow">
+      <button id="hintBtn" class="hintBtn" type="button">💡 ヒント</button>
     </div>
 
     <div id="controls" class="controls hidden">
@@ -407,6 +460,7 @@
   const STORAGE_BEST_NM_KEY = "ringoAtoNankoBestNoMiss";
 
   const CARD_IMAGES = [null,"01.png","02.png","03.png","04.png","05.png","06.png","07.png","08.png","09.png"];
+  const HINT_IMAGES = [null,"f01.png","f02.png","f03.png","f04.png","f05.png","f06.png","f07.png","f08.png","f09.png"];
 
   const state = {
     mode: "practice",
@@ -423,7 +477,8 @@
     nextId: null,
     endAt: 0,
     showResetButton: false,
-    lastResult: null
+    lastResult: null,
+    hintVisible: false
   };
 
   const soundBtn         = document.getElementById("soundBtn");
@@ -439,6 +494,8 @@
   const messageTitle     = document.getElementById("messageTitle");
   const messageSub       = document.getElementById("messageSub");
   const appleCardImg     = document.getElementById("appleCardImg");
+  const hintOverlayImg   = document.getElementById("hintOverlayImg");
+  const hintBtn          = document.getElementById("hintBtn");
   const answerBadge      = document.getElementById("answerBadge");
   const digitButtons     = Array.from(document.querySelectorAll(".digitBtn"));
   const card             = document.querySelector(".card");
@@ -451,7 +508,6 @@
     if (!Cls) return;
     if (!audioCtx) audioCtx = new Cls();
     if (audioCtx.state !== "running") {
-      // iOSは無音bufferを再生することでAudioContextがrunning状態になる
       try {
         const buf = audioCtx.createBuffer(1, 1, audioCtx.sampleRate);
         const src = audioCtx.createBufferSource();
@@ -489,6 +545,20 @@
 
   function playWrong() {
     beep({ freq: 180, duration: 0.12, type: "triangle", gain: 0.03, when: 0 });
+  }
+
+  // --- Hint ---
+  function hideHint() {
+    state.hintVisible = false;
+    hintOverlayImg.classList.remove("show");
+    hintBtn.classList.remove("active");
+  }
+
+  function toggleHint() {
+    if (!state.current) return;
+    state.hintVisible = !state.hintVisible;
+    hintOverlayImg.classList.toggle("show", state.hintVisible);
+    hintBtn.classList.toggle("active", state.hintVisible);
   }
 
   // --- UI ---
@@ -578,13 +648,15 @@
     do {
       count = Math.floor(Math.random() * 9) + 1;
     } while (state.current && count === state.current.count);
-    return { count, image: CARD_IMAGES[count], answer: 10 - count };
+    return { count, image: CARD_IMAGES[count], hint: HINT_IMAGES[count], answer: 10 - count };
   }
 
   function setProblem(p) {
     clearEffects();
+    hideHint();
     state.current = p;
     appleCardImg.src = p.image;
+    hintOverlayImg.src = p.hint;
     hideAnswer();
     showCard();
   }
@@ -808,8 +880,6 @@
   }
 
   // --- Event listeners ---
-  // iOSはtouchstartのコンテキスト内でないとAudioContextが動かないため
-  // touchstartで処理し、直後に発火するゴーストclickは無視する
   let lastTouch = 0;
 
   function addTapListener(el, fn) {
@@ -834,6 +904,8 @@
     if (!state.gameRunning) startGame();
   });
 
+  addTapListener(hintBtn, () => toggleHint());
+
   addTapListener(resultResetBtn, () => {
     clearCurrentBest();
     const { title, sub } = buildResultMessage(true);
@@ -851,13 +923,11 @@
     localStorage.setItem(STORAGE_SOUND_KEY, state.soundOn ? "on" : "off");
     updateSoundButton();
     if (state.soundOn) {
-      // iOS確実パターン: ノードを先にスケジュールしてからresume()を呼ぶ
-      // resume().then()はPromiseマイクロタスクなのでiOSのジェスチャーコンテキストから外れる場合がある
       const Cls = window.AudioContext || window.webkitAudioContext;
       if (!Cls) return;
       if (!audioCtx) audioCtx = new Cls();
       try {
-        const t = audioCtx.currentTime; // suspended時は0
+        const t = audioCtx.currentTime;
         const osc = audioCtx.createOscillator();
         const amp = audioCtx.createGain();
         osc.type = "sine";
@@ -867,10 +937,9 @@
         amp.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
         osc.connect(amp);
         amp.connect(audioCtx.destination);
-        osc.start(t);  // t=0(suspended)でも、resume()後に即再生される
+        osc.start(t);
         osc.stop(t + 0.08);
       } catch(e) {}
-      // ノードをスケジュール済みの後にresume() → コンテキスト開始と同時に上のノードが鳴る
       if (audioCtx.state !== "running") audioCtx.resume();
     }
   });
@@ -896,6 +965,8 @@
     for (let i = 1; i <= 9; i++) {
       const img = new Image();
       img.src = CARD_IMAGES[i];
+      const hint = new Image();
+      hint.src = HINT_IMAGES[i];
     }
   }
 
